@@ -1,0 +1,40 @@
+# =====================================================================================
+# ###       FIXED & BALANCED Controller YAML for Waking Robot       ###
+# =====================================================================================
+
+gazebo_ros_control:
+  pid_gains:
+    # 轮子由于是 continuous joint 且没有 effort 驱动需求（用的 planar plugin），这里为了防报错随便填
+    base_to_front_left_wheel:  {p: 1.0, i: 0.0, d: 0.0}
+    base_to_front_right_wheel: {p: 1.0, i: 0.0, d: 0.0}
+    base_to_rear_left_wheel:   {p: 1.0, i: 0.0, d: 0.0}
+    base_to_rear_right_wheel:  {p: 1.0, i: 0.0, d: 0.0}
+    
+    # 机械臂的 PID 默认值
+    arm_base_joint:  {p: 100.0, i: 0.01, d: 5.0}
+    big_arm_joint:   {p: 100.0, i: 0.01, d: 5.0}
+    small_arm_joint: {p: 50.0,  i: 0.01, d: 2.0}
+
+joint_state_controller:
+  type: joint_state_controller/JointStateController
+  publish_rate: 50
+
+# -------------------------------------------------------------------------------------
+# ARM POSITION CONTROLLERS
+# 现在的 PID 参数对应的是无减速比（Ratio=1）的直驱模型
+# -------------------------------------------------------------------------------------
+arm_base_joint_controller:
+  type: effort_controllers/JointPositionController
+  joint: arm_base_joint
+  pid: {p: 80.0, i: 0.1, d: 2.0, i_clamp: 10.0}
+   
+big_arm_joint_controller:
+  type: effort_controllers/JointPositionController
+  joint: big_arm_joint
+  pid: {p: 80.0, i: 0.1, d: 2.0, i_clamp: 10.0} 
+   
+small_arm_joint_controller:
+  type: effort_controllers/JointPositionController
+  joint: small_arm_joint
+  # 小臂惯量小，P值稍减，防止高频震荡
+  pid: {p: 40.0, i: 0.05, d: 1.0, i_clamp: 5.0}

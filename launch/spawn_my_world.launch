@@ -1,0 +1,91 @@
+<launch>
+    <!-- =================================================================================== -->
+    <!-- |                              参数定义 (Arguments)                                 | -->
+    <!-- =================================================================================== -->
+
+    <!-- 世界文件的路径 -->
+    <arg name="world_file" default="$(find my_robot_description)/worlds/my_world.world" />
+    
+    <!-- 机器人模型文件的路径 (URDF/XACRO) -->
+    <!-- 【重要】请确保这个 xacro 文件已经重新加入了 <transmission> 标签 -->
+    <arg name="model" default="$(find my_robot_description)/urdf/waking_robot.xacro"/>
+
+    <!-- Gazebo 启动参数 -->
+    <arg name="paused" default="false"/>
+    <arg name="use_sim_time" default="true"/>
+    <arg name="gui" default="true"/>
+    <arg name="headless" default="false"/>
+    <arg name="debug" default="false"/>
+
+    <!-- 机器人初始位姿参数 -->
+    <arg name="x_pos" default="0.0"/>
+    <arg name="y_pos" default="0.0"/>
+    <arg name="z_pos" default="0.05"/>
+    <arg name="yaw"   default="1.57"/>
+
+    <!-- =================================================================================== -->
+    <!-- |                           启动 Gazebo (Launch Gazebo)                             | -->
+    <!-- =================================================================================== -->
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(arg world_file)"/>
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="headless" value="$(arg headless)"/>
+        <arg name="debug" value="$(arg debug)"/>
+    </include>
+
+    <!-- =================================================================================== -->
+    <!-- |                       加载并生成机器人模型 (Load & Spawn Robot)                     | -->
+    <!-- =================================================================================== -->
+
+    <!-- 1. 加载机器人模型到参数服务器 -->
+    <param name="robot_description" command="$(find xacro)/xacro $(arg model)" />
+
+    <!-- 2. 在 Gazebo 中按指定位姿生成机器人 -->
+    <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" 
+          args="-urdf -model waking_robot -param robot_description 
+                -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -Y $(arg yaw)" />
+
+    <!-- =================================================================================== -->
+    <!-- |            【新增】加载并启动 ROS 控制器 (Load & Start ROS Controllers)             | -->
+    <!-- =================================================================================== -->
+
+    <!-- 1. 从 YAML 文件加载控制器配置 -->
+    <rosparam file="$(find my_robot_description)/config/controllers.yaml" command="load"/>
+
+
+    <!-- 2. 启动控制器 -->
+    <!-- 
+      这个节点会连接到 Gazebo 中的 gazebo_ros_control 插件, 
+      并根据上面的配置启动一系列控制器。
+    -->
+    <!-- Corrected Controller Spawner Node -->
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+        output="screen" ns="/" 
+        args="--timeout 60
+                joint_state_controller 
+                arm_base_joint_controller 
+                big_arm_joint_controller 
+                small_arm_joint_controller"/>
+
+    <!-- =================================================================================== -->
+    <!-- |                        发布机器人状态 (Publish Robot State)                         | -->
+    <!-- =================================================================================== -->
+    
+    <!-- 
+      该节点订阅 /joint_states 话题 (由 joint_state_controller 发布),
+      并根据 URDF 中的连杆关系, 计算并发布所有连杆的 TF 变换。
+    -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"
+          respawn="false" output="screen"/>
+
+    <!-- 
+      【说明】原有的 joint_state_publisher 节点已被移除。
+      因为我们现在使用 ros_control 的 joint_state_controller, 它会负责读取所有关节
+      (包括由 transmission 标签定义的关节) 的状态并发布到 /joint_states 话题，
+      因此不再需要 joint_state_publisher。
+    -->
+    
+</launch>
