@@ -223,6 +223,14 @@
         <xacro:box_inertia m="${camera_mass}" w="${camera_link_size}" h="${camera_link_size}" d="${camera_link_size}"/>
     </link>
 
+    <link name="camera_depth_optical_frame"/>
+
+    <joint name="camera_depth_optical_joint" type="fixed">
+        <parent link="camera_link"/>
+        <child link="camera_depth_optical_frame"/>
+        <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708"/>
+    </joint>
+
     <joint name="laser_joint" type="fixed">
         <parent link="base_link"/>
         <child link="laser_frame"/>
@@ -355,7 +363,7 @@
                 <pointCloudTopicName>depth/points</pointCloudTopicName>
                 <cameraInfoTopicName>rgb/camera_info</cameraInfoTopicName>
                 <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
-                <frameName>camera_link</frameName>
+                <frameName>camera_depth_optical_frame</frameName>
                 <baseline>0.1</baseline>
             </plugin>
         </sensor>
