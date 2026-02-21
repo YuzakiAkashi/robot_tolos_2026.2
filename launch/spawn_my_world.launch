@@ -87,5 +87,6 @@
       (包括由 transmission 标签定义的关节) 的状态并发布到 /joint_states 话题，
       因此不再需要 joint_state_publisher。
     -->
-    
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find my_robot_description)/config/config.rviz"/>
+
 </launch>
