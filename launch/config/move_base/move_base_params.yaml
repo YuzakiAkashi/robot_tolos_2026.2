@@ -1,0 +1,17 @@
+# move_base 核心参数
+shutdown_costmaps: false
+controller_frequency: 5.0          # 降低控制器频率
+planner_frequency: 0.5             # 降低规划器频率
+controller_patience: 15.0
+planner_patience: 5.0
+max_planning_retries: 3            # 限制重试次数
+conservative_reset_dist: 3.0
+
+# 恢复行为配置
+recovery_behavior_enabled: true
+clearing_rotation_allowed: true
+oscillation_timeout: 10.0
+oscillation_distance: 0.3
+
+# 增加 TF 容忍
+transform_tolerance: 1.0

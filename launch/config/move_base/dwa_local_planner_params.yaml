@@ -1,0 +1,53 @@
+DWAPlannerROS:
+
+  ############### 机器人运动学参数 ###############
+  max_vel_x: 0.55            # X方向最大线速度 (m/s)
+  min_vel_x: 0.55             # X方向最小线速度 (m/s)
+
+  max_vel_y: 0.55            # Y方向最大线速度 (全向机器人有效)
+  min_vel_y: 0.55           # Y方向最小线速度 (全向机器人有效)
+  max_vel_trans: 1.1       # 最大平移速度 (线速度合成)
+  min_vel_trans: 0.1         # 最小平移速度 (小于该值视为停止)
+
+  max_vel_theta: 1.0         # 最大角速度 (rad/s)
+  min_vel_theta: 0.4         # 最小角速度 (rad/s)
+
+  acc_lim_x: 2.5             # X方向加速度限制 (m/s^2)
+  acc_lim_y: 0             # Y方向加速度限制 (全向有效)
+  acc_lim_theta: 3.2         # 角速度加速度限制 (rad/s^2)
+  acc_lim_trans: 0.1         # 平移加速度限制 (m/s^2)
+
+  ############### 模拟与采样参数 ###############
+  sim_time: 2.5              # 前向仿真时间 (秒)
+  sim_granularity: 0.025     # 仿真轨迹离散步长 (m)
+  angular_sim_granularity: 0.1  # 角度仿真分辨率 (rad)
+  vx_samples: 10              # X方向速度采样数
+  vy_samples: 3             # Y方向速度采样数 (全向有效)
+  vth_samples: 20            # 角速度采样数
+
+  ############### 成本函数权重 ###############
+  path_distance_bias: 0.6    # 距离全局路径的代价权重 (越大越贴合全局路径)
+  goal_distance_bias: 0.8    # 靠近目标点的代价权重
+  occdist_scale: 0.7       # 障碍物代价权重
+  forward_point_distance: 0.325  # 前向评估点距离机器人中心距离 (m)
+
+  ############### 动态避障与速度缩放 ###############
+  scaling_speed: 0.25        # 开始速度缩放的速度阈值
+  max_scaling_factor: 0.2    # 最大缩放因子（越大越保守）
+
+  ############### 停止与震荡控制 ###############
+  trans_stopped_vel: 0.1     # 线速度小于该值视为停止
+  theta_stopped_vel: 0.1     # 角速度小于该值视为停止
+  oscillation_reset_dist: 0.05  # 在移动该距离后重置震荡检测
+  oscillation_reset_angle: 0.2  # 在旋转该角度后重置震荡检测
+
+  ############### 目标点容差 ###############
+  xy_goal_tolerance: 0.2     # 到达目标时XY方向允许误差 (m)
+  yaw_goal_tolerance: 0.1    # 到达目标时角度允许误差 (rad)
+
+  ############### 其他设置 ###############
+  prune_plan: false          # 是否在导航过程中修剪全局路径
+  twirling_scale: 0.0        # 防止“原地打转”行为的惩罚项
+  stop_time_buffer: 0.2      # 停止前的时间缓冲 (秒)
+  use_dwa: true              # 启用DWA算法（true为动态窗口法）
+  restore_defaults: false    # 是否恢复默认配置（保持false）

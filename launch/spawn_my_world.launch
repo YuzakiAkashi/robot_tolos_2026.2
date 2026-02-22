@@ -87,6 +87,28 @@
       (包括由 transmission 标签定义的关节) 的状态并发布到 /joint_states 话题，
       因此不再需要 joint_state_publisher。
     -->
+
+  <!-- ================== 加载地图 ================== -->
+  <node name="map_server" pkg="map_server" type="map_server"
+        args="$(find my_robot_description)/map/nav.yaml" />
+
+  <!-- ================== 启动 AMCL ================== -->
+  <include file="$(find my_robot_description)/launch/config/amcl/amcl_omni.launch" />
+  
+  <!-- ================== 启动 move_base ================== -->
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen" clear_params="true">
+    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
+
+    <!-- Costmap 配置 -->
+    <rosparam file="$(find my_robot_description)/launch/config/move_base/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find my_robot_description)/launch/config/move_base/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find my_robot_description)/launch/config/move_base/global_costmap_params.yaml" command="load" />
+    <rosparam file="$(find my_robot_description)/launch/config/move_base/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find my_robot_description)/launch/config/move_base/global_planner_params.yaml" command="load" />
+    <rosparam file="$(find my_robot_description)/launch/config/move_base/dwa_local_planner_params.yaml" command="load" />
+  </node>
+
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find my_robot_description)/config/config.rviz"/>
 
 </launch>
