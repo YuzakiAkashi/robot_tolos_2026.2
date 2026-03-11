@@ -30,17 +30,20 @@ class FeatureMatchNode:
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.num_workers)
         
         # 添加误识别过滤参数
-        self.min_detection_area_ratio = rospy.get_param('~min_detection_area_ratio', 0.005)
+        self.min_detection_area_ratio = rospy.get_param('~min_detection_area_ratio', 0.002)
         self.max_detection_area_ratio = rospy.get_param('~max_detection_area_ratio', 0.6)
         self.min_inlier_ratio = rospy.get_param('~min_inlier_ratio', 0.3)
-        self.min_combined_score = rospy.get_param('~min_combined_score', 0.005)
+        self.min_combined_score = rospy.get_param('~min_combined_score', 0.001)
         
         # 增强的几何验证参数
         self.min_aspect_ratio = rospy.get_param('~min_aspect_ratio', 0.3)
         self.max_aspect_ratio = rospy.get_param('~max_aspect_ratio', 3.0)
         self.min_compactness = rospy.get_param('~min_compactness', 0.4)
-        self.max_skew_angle = rospy.get_param('~max_skew_angle', 60)
+        self.max_skew_angle = rospy.get_param('~max_skew_angle', 80)
         self.min_polygon_area_ratio = rospy.get_param('~min_polygon_area_ratio', 0.3)
+
+        # ========== 新增：NMS 阈值 ==========
+        self.nms_iou_threshold = rospy.get_param('~nms_iou_threshold', 0.5)
 
         # 初始化特征提取器
         self.detector = cv2.SIFT_create(
@@ -63,10 +66,9 @@ class FeatureMatchNode:
             rospy.logerr("未加载到任何模板，请检查路径")
             sys.exit(1)
 
-        # 检测结果过滤
-        self.last_detection_time = 0
+        # 检测结果过滤（用于控制台输出冷却）
+        self.last_detection_time = {}  # 改为字典，记录每个物体上次输出时间
         self.detection_cooldown = 2.0
-        self.last_detected_object = None
 
         # 订阅图像
         self.image_sub = rospy.Subscriber(self.image_topic, Image, self.image_callback)
@@ -92,6 +94,7 @@ class FeatureMatchNode:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             gray = clahe.apply(gray)
             kp, des = self.detector.detectAndCompute(gray, None)
+            
             if des is None or len(kp) == 0:
                 #rospy.logwarn(f"[WARN] 模板 {f} 无特征点")
                 continue
@@ -180,8 +183,51 @@ class FeatureMatchNode:
                 }
         return None
 
+    # ========== 新增：非极大值抑制 ==========
+    def non_max_suppression(self, detections, iou_threshold):
+        """
+        对检测框按得分排序，并抑制重叠度高的框。
+        detections: 字典列表，每个字典需包含 'bbox' (x,y,w,h) 和 'ratio' 得分
+        iou_threshold: IoU 阈值，超过此值的低分框将被抑制
+        """
+        if not detections:
+            return []
+        # 按得分降序排列
+        detections = sorted(detections, key=lambda x: x['ratio'], reverse=True)
+        keep = []
+        while detections:
+            best = detections.pop(0)
+            keep.append(best)
+            # 计算 best 与其余框的 IoU，并移除重叠过大的
+            to_remove = []
+            for i, det in enumerate(detections):
+                iou = self.compute_iou(best['bbox'], det['bbox'])
+                if iou > iou_threshold:
+                    to_remove.append(i)
+            for idx in reversed(to_remove):
+                detections.pop(idx)
+        return keep
+
+    def compute_iou(self, box1, box2):
+        """计算两个矩形框的 IoU，box = (x, y, w, h)"""
+        x1, y1, w1, h1 = box1
+        x2, y2, w2, h2 = box2
+        # 交集
+        xi1 = max(x1, x2)
+        yi1 = max(y1, y2)
+        xi2 = min(x1 + w1, x2 + w2)
+        yi2 = min(y1 + h1, y2 + h2)
+        inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+        # 并集
+        box1_area = w1 * h1
+        box2_area = w2 * h2
+        union_area = box1_area + box2_area - inter_area
+        if union_area == 0:
+            return 0
+        return inter_area / union_area
+
     def process_frame_parallel(self, frame):
-        """并行处理帧，使用多线程同时匹配所有模板"""
+        """并行处理帧，使用多线程同时匹配所有模板，返回所有有效检测"""
         with self.lock:
             if hasattr(self, 'processed_frame'):
                 gray_frame = self.processed_frame.copy()
@@ -191,7 +237,7 @@ class FeatureMatchNode:
         # 提取当前帧的特征点
         kp_frame, des_frame = self.detector.detectAndCompute(gray_frame, None)
         if des_frame is None:
-            return frame, None
+            return frame, []
         
         # 并行匹配所有模板
         futures = []
@@ -202,39 +248,34 @@ class FeatureMatchNode:
             )
             futures.append(future)
         
-        # 收集结果
-        best = None
-        results = []
+        # 收集所有有效结果
+        detections = []
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
             if result is not None:
-                results.append(result)
-                if best is None or result['ratio'] > best['ratio']:
-                    best = result
+                detections.append(result)
         
-        # 如果没有找到匹配，返回默认值
-        if best is None:
-            best = {'name': None, 'ratio': 0.0}
-            
-        return frame, best
+        # 应用非极大值抑制，过滤重叠框
+        detections = self.non_max_suppression(detections, self.nms_iou_threshold)
+        
+        return frame, detections
 
-    def output_detection_to_console(self, detection_result):
-        """直接在控制台输出检测到的物体信息"""
+    def output_detections_to_console(self, detections):
+        """在控制台输出所有检测到的物体信息，带独立冷却"""
         current_time = time.time()
+        output_lines = []
+        for det in detections:
+            name = det['name']
+            # 检查该物体的冷却时间
+            if (name in self.last_detection_time and 
+                current_time - self.last_detection_time[name] < self.detection_cooldown):
+                continue  # 冷却中，跳过本次输出
+            self.last_detection_time[name] = current_time
+            output_lines.append(f"检测到物体: {name} | 得分:{det['ratio']:.3f} | 面积比:{det['area_ratio']:.3f}")
         
-        # 检查冷却时间（避免重复输出相似的检测）
-        # if (current_time - self.last_detection_time < self.detection_cooldown and 
-        #     self.last_detected_object == detection_result['name']):
-        #     return False
-            
-        # 输出检测结果到控制台
-        rospy.loginfo(f"检测到物体: {detection_result['name']} | "
-                     f"{detection_result['ratio']:.3f} | "
-                     f"{detection_result['area_ratio']:.3f}")
-        
-        self.last_detection_time = current_time
-        self.last_detected_object = detection_result['name']
-        return True
+        if output_lines:
+            for line in output_lines:
+                rospy.loginfo(line)
 
     def color_similarity_hsv(self, img_roi, template_img):
         if img_roi is None or template_img is None:
@@ -324,7 +365,7 @@ class FeatureMatchNode:
             return False, None, 0, 0, 0
 
     def process_frame(self, frame):
-        """主处理函数，现在使用并行版本"""
+        """主处理函数，现在使用并行版本，返回所有检测"""
         return self.process_frame_parallel(frame)
 
     def display_loop(self):
@@ -349,31 +390,33 @@ class FeatureMatchNode:
                 continue
 
             if current_time - last_process_time >= process_interval:
-                result, best = self.process_frame(frame)
+                result, detections = self.process_frame(frame)
                 
-                # 绘制检测结果
-                if best and best['name'] and best['ratio'] > self.min_combined_score:
-                    tpl_h, tpl_w = best['template']['image'].shape[:2]
+                # 绘制所有检测结果
+                for det in detections:
+                    tpl_h, tpl_w = det['template']['image'].shape[:2]
                     pts = np.float32([[0,0], [0,tpl_h-1], [tpl_w-1,tpl_h-1], [tpl_w-1,0]]).reshape(-1, 1, 2)
-                    dst = cv2.perspectiveTransform(pts, best['homography'])
+                    dst = cv2.perspectiveTransform(pts, det['homography'])
                     
                     cv2.polylines(result, [np.int32(dst)], True, (0, 255, 0), 3)
-                    x, y, w, h = best['bbox']
+                    x, y, w, h = det['bbox']
                     
-                    info_text = f"{best['name']} (Score:{best['ratio']:.2f})"
+                    info_text = f"{det['name']} (Score:{det['ratio']:.2f})"
                     cv2.putText(result, info_text, (x, y-10), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                     
-                    geom_text = f"Compact:{best['compactness']:.2f} Skew:{best['skew_angle']:.1f}°"
+                    geom_text = f"Compact:{det['compactness']:.2f} Skew:{det['skew_angle']:.1f}°"
                     cv2.putText(result, geom_text, (x, y+h+25), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                    
-                    stats_text = f"Matches: {best['raw_match_ratio']:.2f} Inliers:{best['inlier_ratio']:.2f}"
+                
+                # 在左上角显示总检测数量及统计信息（可选）
+                if detections:
+                    stats_text = f"Detected: {len(detections)} objects"
                     cv2.putText(result, stats_text, (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
                     
-                    # 输出到控制台
-                    self.output_detection_to_console(best)
+                    # 输出到控制台（带冷却）
+                    self.output_detections_to_console(detections)
                 
                 cv2.imshow("SIFT/ORB Detection", result)
                 last_process_time = current_time
