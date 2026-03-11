@@ -56,30 +56,36 @@ class HexBoardDetector:
 
         hexagons = []
 
+        print("contours:", len(contours))
+
         for c in contours:
 
             area = cv2.contourArea(c)
-
-            if area < 2000:
-                continue
+            print("area:",area)
 
             peri = cv2.arcLength(c,True)
+            approx = cv2.approxPolyDP(c,0.04*peri,True)
 
-            approx = cv2.approxPolyDP(c,0.02*peri,True)
+            print("vertices:",len(approx))
 
-            if len(approx)==6:
+            x,y,w,h = cv2.boundingRect(c)
+            ratio = w/float(h)
 
-                M = cv2.moments(c)
+            # 过滤细长的红柱
+            if ratio < 0.4 or ratio > 2.0:
+                continue
 
-                if M["m00"]==0:
-                    continue
+            print("ratio:",ratio)
 
-                cx = int(M["m10"]/M["m00"])
-                cy = int(M["m01"]/M["m00"])
+            M = cv2.moments(c)
 
-                x,y,w,h = cv2.boundingRect(c)
+            if M["m00"]==0:
+                continue
 
-                hexagons.append((c,cx,cy,x,y,w,h))
+            cx = int(M["m10"]/M["m00"])
+            cy = int(M["m01"]/M["m00"])
+
+            hexagons.append((approx,cx,cy,x,y,w,h))
 
         return hexagons
 
@@ -127,7 +133,7 @@ class HexBoardDetector:
             ("Male","Female","Female"):"MFF",
             ("Female","Female","Male"):"FFM"
         }
-        #2print("pattern:", pattern)
+        print("pattern:", pattern)
         key = tuple(pattern)
 
         if key in patterns:
@@ -145,11 +151,22 @@ class HexBoardDetector:
         if len(hexagons) < 3:
             return draw
 
-        hexagons = sorted(hexagons,key=lambda x:(x[2],x[1]))
+        # 按面积排序
+        hexagons = sorted(
+            hexagons,
+            key=lambda x: cv2.contourArea(x[0]),
+            reverse=True
+        )
+
+        # 取最大的三个
+        hexagons = hexagons[:3]
+
+        # 再按位置排序
+        hexagons = sorted(hexagons,key=lambda x:(x[2],x[1]))      
 
         pattern = []
 
-        for c,cx,cy,x,y,w,h in hexagons[:3]:
+        for c,cx,cy,x,y,w,h in hexagons:  
 
             roi = frame[y:y+h, x:x+w]
 
