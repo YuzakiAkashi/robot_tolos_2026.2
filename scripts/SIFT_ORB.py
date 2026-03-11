@@ -31,22 +31,25 @@ class HexBoardDetector:
 
         self.frame = self.bridge.imgmsg_to_cv2(msg,"bgr8")
 
+    
     def detect_hexagons(self,frame):
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        lower_red1 = np.array([0,80,80])
-        upper_red1 = np.array([10,255,255])
+        lower_red1 = np.array([0,150,150])
+        upper_red1 = np.array([5,255,255])
 
-        lower_red2 = np.array([170,80,80])
+        lower_red2 = np.array([175,150,150])
         upper_red2 = np.array([180,255,255])
 
         mask1 = cv2.inRange(hsv,lower_red1,upper_red1)
         mask2 = cv2.inRange(hsv,lower_red2,upper_red2)
 
         mask = mask1 + mask2
-
         mask = cv2.medianBlur(mask,5)
+
+        # debug：查看红色分割效果
+        #cv2.imshow("debug_red_mask",mask)
 
         contours,_ = cv2.findContours(
             mask,
@@ -54,41 +57,59 @@ class HexBoardDetector:
             cv2.CHAIN_APPROX_SIMPLE
         )
 
-        hexagons = []
-
+        print("-------- new frame --------")
         print("contours:", len(contours))
 
-        for c in contours:
+        hexagons = []
+
+        for i,c in enumerate(contours):
 
             area = cv2.contourArea(c)
-            print("area:",area)
 
             peri = cv2.arcLength(c,True)
-            approx = cv2.approxPolyDP(c,0.04*peri,True)
+            approx = cv2.approxPolyDP(c,0.03*peri,True)
 
-            print("vertices:",len(approx))
+            vertices = len(approx)
 
             x,y,w,h = cv2.boundingRect(c)
             ratio = w/float(h)
 
-            # 过滤细长的红柱
-            if ratio < 0.4 or ratio > 2.0:
+            print("id:",i,
+                "area:",area,
+                "vertices:",vertices,
+                "ratio:",ratio)
+
+            # 面积过滤
+            if area < 2000:
+                print(" -> reject: area too small")
                 continue
 
-            print("ratio:",ratio)
+            # 六边形过滤
+            if vertices < 5 or vertices > 7:
+                print(" -> reject: not hexagon")
+                continue
+
+            # 柱子过滤
+            if ratio < 0.3 or ratio > 3.0:
+                print(" -> reject: bad ratio")
+                continue
 
             M = cv2.moments(c)
 
-            if M["m00"]==0:
+            if M["m00"] == 0:
+                print(" -> reject: zero moment")
                 continue
 
             cx = int(M["m10"]/M["m00"])
             cy = int(M["m01"]/M["m00"])
 
+            print(" -> accepted hexagon")
+
             hexagons.append((approx,cx,cy,x,y,w,h))
 
-        return hexagons
+        print("hexagons detected:",len(hexagons))
 
+        return hexagons
 
     def classify_shape(self, roi):
 
