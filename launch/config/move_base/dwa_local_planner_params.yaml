@@ -18,7 +18,7 @@ DWAPlannerROS:
   acc_lim_trans: 0.1         # 平移加速度限制 (m/s^2)
 
   ############### 模拟与采样参数 ###############
-  sim_time: 2.5              # 前向仿真时间 (秒)
+  sim_time: 0.8              # 前向仿真时间 (秒)
   sim_granularity: 0.025     # 仿真轨迹离散步长 (m)
   angular_sim_granularity: 0.1  # 角度仿真分辨率 (rad)
   vx_samples: 10              # X方向速度采样数
