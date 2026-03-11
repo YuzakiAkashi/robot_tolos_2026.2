@@ -111,4 +111,10 @@
 
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find my_robot_description)/config/config.rviz"/>
 
+  <!-- 激光雷达过滤器 -->
+  <node pkg="laser_filters" type="scan_to_scan_filter_chain" name="laser_filter">
+    <rosparam command="load" file="$(find my_robot_description)/launch/config/laser_filter.yaml"/>
+    <remap from="scan" to="/scan_raw"/>
+  </node>
+
 </launch>

@@ -1,13 +1,13 @@
 DWAPlannerROS:
 
   ############### 机器人运动学参数 ###############
-  max_vel_x: 0.55            # X方向最大线速度 (m/s)
-  min_vel_x: 0.55             # X方向最小线速度 (m/s)
+  max_vel_x: 0.2            # X方向最大线速度 (m/s)
+  min_vel_x: 0.2             # X方向最小线速度 (m/s)
 
-  max_vel_y: 0.55            # Y方向最大线速度 (全向机器人有效)
-  min_vel_y: 0.55           # Y方向最小线速度 (全向机器人有效)
-  max_vel_trans: 1.1       # 最大平移速度 (线速度合成)
-  min_vel_trans: 0.1         # 最小平移速度 (小于该值视为停止)
+  max_vel_y: 0.2            # Y方向最大线速度 (全向机器人有效)
+  min_vel_y: 0.2           # Y方向最小线速度 (全向机器人有效)
+  max_vel_trans: 0.5       # 最大平移速度 (线速度合成)
+  min_vel_trans: 0.05         # 最小平移速度 (小于该值视为停止)
 
   max_vel_theta: 1.0         # 最大角速度 (rad/s)
   min_vel_theta: 0.4         # 最小角速度 (rad/s)
@@ -42,7 +42,7 @@ DWAPlannerROS:
   oscillation_reset_angle: 0.2  # 在旋转该角度后重置震荡检测
 
   ############### 目标点容差 ###############
-  xy_goal_tolerance: 0.2     # 到达目标时XY方向允许误差 (m)
+  xy_goal_tolerance: 0.05     # 到达目标时XY方向允许误差 (m)
   yaw_goal_tolerance: 0.1    # 到达目标时角度允许误差 (rad)
 
   ############### 其他设置 ###############
