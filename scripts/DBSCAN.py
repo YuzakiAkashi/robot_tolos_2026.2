@@ -28,7 +28,7 @@ class ConeDetector:
         self.cluster_eps = rospy.get_param("~cluster_eps", 0.12)
         self.min_points = rospy.get_param("~min_points", 5)
 
-        self.min_range = rospy.get_param("~min_range", 0.2)
+        self.min_range = rospy.get_param("~min_range", 0.5)
         self.max_range = rospy.get_param("~max_range", 5.0)
 
         self.min_radius = rospy.get_param("~min_radius", 0.05)
