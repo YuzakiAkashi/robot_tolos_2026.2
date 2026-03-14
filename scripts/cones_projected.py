@@ -32,18 +32,21 @@ class LineProjector:
 
         # 线段端点（odom坐标系）
         self.A = np.array([
-            5.210430145263672,
-            3.891853094100952
+            5.21,
+            3.85
         ])
 
         self.B = np.array([
-            10.525156021118164,
-            3.8432748317718506
+            10.52,
+            3.85
         ])
 
         self.d = self.B - self.A
         self.dd = np.dot(self.d, self.d)
 
+        # 直线长度
+        self.line_length = np.linalg.norm(self.d)
+        
         rospy.loginfo("cone line projection node started")
 
     # 点从 base_link → odom
@@ -80,30 +83,35 @@ class LineProjector:
             return None
 
     # 投影到线段
-    def project_point(self, p):
+    def transform_point(self, x, y, frame):
 
-        ap = p - self.A
+        try:
+            trans = self.tf_buffer.lookup_transform(
+                "odom",
+                frame,
+                rospy.Time(0),
+                rospy.Duration(0.1)
+            )
 
-        t = np.dot(ap, self.d) / self.dd
+            pt = PointStamped()
+            pt.header.frame_id = frame
+            pt.point.x = x
+            pt.point.y = y
 
-        # 限制在线段AB之间
-        if t < 0.0 or t > 1.0:
+            pt = tf2_geometry_msgs.do_transform_point(pt, trans)
+
+            return np.array([pt.point.x, pt.point.y])
+
+        except:
             return None
-
-        proj = self.A + t * self.d
-
-        return proj
 
     def callback(self, msg):
 
-        out = PoseArray()
-
-        out.header.stamp = rospy.Time.now()
-        out.header.frame_id = "odom"
+        proj_points = []
+        t_values = []
 
         for pose in msg.poses:
 
-            # 1. 坐标系转换
             p = self.transform_point(
                 pose.position.x,
                 pose.position.y,
@@ -113,21 +121,57 @@ class LineProjector:
             if p is None:
                 continue
 
-            # 2. 投影
-            proj = self.project_point(p)
+            ap = p - self.A
+            t = np.dot(ap, self.d) / self.dd
 
-            new_pose = Pose()
+            # 丢弃线段外点
+            if t < 0.0 or t > 1.0:
+                continue
 
-            new_pose.position.x = proj[0]
-            new_pose.position.y = proj[1]
-            new_pose.position.z = 0.0
+            proj = self.A + t * self.d
 
-            new_pose.orientation.w = 1.0
+            proj_points.append(proj)
+            t_values.append(t)
 
-            out.poses.append(new_pose)
+        if len(proj_points) == 0:
+            return
 
-        if len(out.poses) > 0:
-            self.pub.publish(out)
+        # 按直线方向排序
+        order = np.argsort(t_values)
+        proj_points = [proj_points[i] for i in order]
+        t_values = [t_values[i] for i in order]
+
+        labels = ["A"] * len(proj_points)
+
+        # 用t距离判断
+        for i in range(len(t_values) - 1):
+
+            dist = abs(t_values[i+1] - t_values[i]) * self.line_length
+
+            if dist <= 0.75:
+                labels[i] = "B"
+                labels[i+1] = "B"
+
+        out = PoseArray()
+        out.header.stamp = rospy.Time.now()
+        out.header.frame_id = "odom"
+
+        for p, label in zip(proj_points, labels):
+
+            pose = Pose()
+            pose.position.x = p[0]
+            pose.position.y = p[1]
+
+            # z用来标记类型
+            if label == "A":
+                pose.position.z = 0.0
+            else:
+                pose.position.z = 1.0
+
+            pose.orientation.w = 1.0
+            out.poses.append(pose)
+
+        self.pub.publish(out)
 
 
 if __name__ == "__main__":

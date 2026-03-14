@@ -32,7 +32,7 @@ class ConeDetector:
         self.max_range = rospy.get_param("~max_range", 5.0)
 
         self.min_radius = rospy.get_param("~min_radius", 0.05)
-        self.max_radius = rospy.get_param("~max_radius", 0.25)
+        self.max_radius = rospy.get_param("~max_radius", 0.4)
 
         self.ransac_iter = rospy.get_param("~ransac_iter", 100)
         self.ransac_thresh = rospy.get_param("~ransac_thresh", 0.02)
